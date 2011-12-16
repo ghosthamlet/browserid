@@ -991,46 +991,6 @@
     return iframe;
   }
 
-
-  function _open_window(url, name_suffix) {
-    url = url || "about:blank";
-    // we open the window initially blank, and only after our relay frame has
-    // been constructed do we update the location.  This is done because we
-    // must launch the window inside a click handler, but we should wait to
-    // start loading it until our relay iframe is instantiated and ready.
-    // see issue #287 & #286
-    var window_name = "_mozid_signin";
-    if (name_suffix)
-      window_name += "_" + name_suffix;
-
-    var dialog = window.open(
-      url,
-      window_name,
-      isFennec ? undefined : "menubar=0,location=0,resizable=0,scrollbars=0,status=0,dialog=1,width=700,height=375");
-
-    dialog.focus();
-    return dialog;
-  }
-
-  function _attach_event(element, name, listener) {
-    if (element.addEventListener) {
-      element.addEventListener(name, listener, false);
-    }
-    else if(element.attachEvent) {
-      // IE < 9
-      element.attachEvent('on' + name, listener);
-    }
-  }
-
-  function _detatch_event(element, name, listener) {
-    if (element.removeEventListener) {
-      element.removeEventListener(name, listener, false);
-    }
-    else if(element.detachEvent) {
-      element.detachEvent(name, listener);
-    }
-  }
-
   /**
    * The meat and potatoes of the verified email protocol
    */
@@ -1043,12 +1003,16 @@
   if (!navigator.id.getVerifiedEmail || navigator.id._getVerifiedEmailIsShimmed) {
     var ipServer = "https://browserid.org";
     var isFennec = navigator.userAgent.indexOf('Fennec/') != -1;
+    var windowOpenOpts =
+      (isFennec ? undefined :
+       "menubar=0,location=0,resizable=0,scrollbars=0,status=0,dialog=1,width=700,height=375");
 
-    var relay_chan, w, relay_iframe;
+    var w;
 
-    // keep track of these so that we can re-use/re-focus an already open window.
     navigator.id.get = function(callback, options) {
-      if (typeof callback !== 'function') throw "navigator.id.get() requires a callback argument";
+      if (typeof callback !== 'function') {
+        throw "navigator.id.get() requires a callback argument";
+      }
 
       if (options && options.silent) {
         _noninteractiveCall('getPersistentAssertion', { }, function(rv) {
@@ -1057,24 +1021,33 @@
           callback(null);
         });
       } else {
-        // XXX: focus an existing window?
-
-        if (!BrowserSupport.isSupported()) {
-          w = _open_window(ipServer + "/unsupported_dialog");
+        // focus an existing window
+        if (w) {
+          w.focus();
           return;
         }
 
-        WinChan.open(
+        if (!BrowserSupport.isSupported()) {
+          var w = window.open(
+            ipServer + "/unsupported_dialog",
+            null,
+            windowOpenOpts);
+          return;
+        }
+
+        w = WinChan.open(
           ipServer + '/sign_in',
           ipServer + '/relay',
-          "menubar=0,location=0,resizable=0,scrollbars=0,status=0,dialog=1,width=700,height=375",
+          windowOpenOpts,
           {
             method: "get",
             params: options
           },
           function(err, r) {
+            // clear the window handle
+            w = undefined;
             // ignore err!
-            callback(r);
+            callback(err ? null : (r ? r : null));
           }
         );
       }
