@@ -1056,7 +1056,7 @@
         }
 
         if (!BrowserSupport.isSupported()) {
-          var w = window.open(
+          w = window.open(
             ipServer + "/unsupported_dialog",
             null,
             windowOpenOpts);
